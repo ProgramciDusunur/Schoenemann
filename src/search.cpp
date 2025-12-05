@@ -258,42 +258,40 @@ int Search::pvs(int alpha, int beta, int depth, const int ply, Board &board, boo
             quietMoveCount++;
         }
 
-        // PVS
-        // We assume our first move is the best move so we search this move with a full window
-        if (moveCount == 1) {
-            score = -pvs(-beta, -alpha, depth - 1 + extensions, ply + 1, board, !cutNode);
-        } else {
+        int new_depth = depth - 1 + extensions;
+
+        if (depth > 2 && moveCount > 1) {
             int depthReduction = 0;
+            // Get the initial reduction from the reduction table
+            depthReduction = reductions[depth][moveCount];
 
-            // Late Move Reductions (LMR)
-            // Since our assumption is that the first move is the best move we search all other
-            // moves with a lower depth. And we also assume that our move ordering is good the
-            // more moves we made the higher our depth reduction will go
-            if (depth > 2) {
-                // Get the initial reduction from the reduction table
-                depthReduction = reductions[depth][moveCount];
+            // When we are in a pv node we want to search with a higher depth
+            // so we decrease the depth reduction
+            depthReduction -= pvNode;
 
-                // When we are in a pv node we want to search with a higher depth
-                // so we decrease the depth reduction
-                depthReduction -= pvNode;
+            // Since it is an expected cuteNode we expect to fail high
+            // so we increase the depth reduction
+            depthReduction += cutNode;
 
-                // Since it is an expected cuteNode we expect to fail high
-                // so we increase the depth reduction
-                depthReduction += cutNode;
-
-                // Finally clamp the depth reduction
-                depthReduction = std::clamp(depthReduction, 0, depth - 1);
-            }
+            // Finally clamp the depth reduction
+            depthReduction = std::clamp(depthReduction, 0, depth - 1);
 
             // Since we assumed that our first move was the best we search every other
             // move with a zero window
-            score = -pvs(-alpha - 1, -alpha, depth - depthReduction - 1 + extensions, ply + 1, board, true);
+            score = -pvs(-alpha - 1, -alpha, new_depth - depthReduction, ply + 1, board, true);
 
-            // If the score is outside the window we need to research with full window
-            if (score > alpha && (score < beta || depthReduction > 0)) {
-                score = -pvs(-beta, -alpha, depth - 1 + extensions, ply + 1, board, !cutNode);
+            // Post LMR Research
+            if (score > alpha && depthReduction != 0) {
+                score = -pvs(-alpha - 1, -alpha, new_depth, ply + 1, board, !cutNode);
             }
         }
+        else if (!pvNode || moveCount > 1) {
+            score = -pvs(-alpha - 1, -alpha, new_depth, ply + 1, board, !cutNode);
+        }
+
+        if (pvNode && (moveCount == 1 || score > alpha)) {
+            score = -pvs(-beta, -alpha, new_depth, ply + 1, board, !cutNode);
+        }       
 
         board.unmakeMove(move);
 
