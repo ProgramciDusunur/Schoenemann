@@ -259,6 +259,7 @@ int Search::pvs(int alpha, int beta, int depth, const int ply, Board &board, boo
         }
 
         int new_depth = depth - 1 + extensions;
+        
 
         if (depth > 2 && moveCount > 1) {
             int depthReduction = 0;
